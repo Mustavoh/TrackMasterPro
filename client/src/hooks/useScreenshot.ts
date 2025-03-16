@@ -36,23 +36,37 @@ export function useScreenshot() {
   
   // Open the screenshot modal
   const openScreenshotModal = async (screenshot: Screenshot) => {
-    setSelectedScreenshot(screenshot);
     setIsModalOpen(true);
+    setSelectedScreenshot(screenshot);
     
-    // If we don't already have the full screenshot data, fetch it
-    if (!screenshot.screenshotData) {
-      try {
-        const fullScreenshot = await getScreenshot(screenshot.id);
-        if (fullScreenshot) {
-          setSelectedScreenshot(prev => ({
-            ...prev!,
-            screenshotData: fullScreenshot.screenshotData,
-            resolution: fullScreenshot.resolution
-          }));
-        }
-      } catch (error) {
-        console.error("Error fetching full screenshot:", error);
+    console.log("Opening screenshot modal with data:", screenshot);
+    
+    // Always try to fetch the full screenshot data, even if we think we have it
+    try {
+      console.log("Fetching screenshot with ID:", screenshot.id);
+      const fullScreenshot = await getScreenshot(screenshot.id);
+      console.log("Received full screenshot:", fullScreenshot);
+      
+      if (fullScreenshot) {
+        setSelectedScreenshot(prev => ({
+          ...prev!,
+          screenshotData: fullScreenshot.screenshotData,
+          resolution: fullScreenshot.resolution
+        }));
+      } else {
+        toast({
+          title: "Warning",
+          description: "Could not fetch full screenshot data",
+          variant: "destructive"
+        });
       }
+    } catch (error) {
+      console.error("Error fetching full screenshot:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load screenshot details",
+        variant: "destructive"
+      });
     }
   };
   

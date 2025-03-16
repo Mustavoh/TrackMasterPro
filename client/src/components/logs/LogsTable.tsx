@@ -195,10 +195,35 @@ export default function LogsTable({
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
                       <div className="flex space-x-2">
-                        <button className="text-gray-400 hover:text-white">
+                        <button 
+                          className="text-gray-400 hover:text-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (log.type === 'Screenshot') {
+                              handleViewScreenshot(log);
+                            } else {
+                              // Create a modal or alert showing full content
+                              window.alert(log.data);
+                            }
+                          }}
+                        >
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button className="text-gray-400 hover:text-white">
+                        <button 
+                          className="text-gray-400 hover:text-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(log.data);
+                            // Show a small toast notification
+                            const toast = document.createElement('div');
+                            toast.className = 'fixed bottom-4 right-4 bg-secondary text-white px-4 py-2 rounded-md shadow-lg';
+                            toast.textContent = 'Copied to clipboard!';
+                            document.body.appendChild(toast);
+                            setTimeout(() => {
+                              document.body.removeChild(toast);
+                            }, 2000);
+                          }}
+                        >
                           <Copy className="h-4 w-4" />
                         </button>
                         {log.type === "Clipboard" && (

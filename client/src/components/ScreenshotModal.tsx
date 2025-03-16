@@ -19,15 +19,24 @@ export default function ScreenshotModal({ screenshot, onClose }: ScreenshotModal
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
   useEffect(() => {
+    console.log("Screenshot modal received:", screenshot);
+    setIsLoading(true);
+    
     if (screenshot?.screenshotData) {
       // Convert base64 to image URL
       try {
-        setImageData(`data:image/png;base64,${screenshot.screenshotData}`);
+        console.log("Processing screenshot data, first 100 chars:", screenshot.screenshotData.substring(0, 100));
+        const imageUrl = `data:image/png;base64,${screenshot.screenshotData}`;
+        console.log("Setting image URL (first 100 chars):", imageUrl.substring(0, 100));
+        setImageData(imageUrl);
       } catch (error) {
         console.error("Error loading screenshot:", error);
       } finally {
         setIsLoading(false);
       }
+    } else {
+      console.warn("No screenshot data found in the object");
+      setIsLoading(false);
     }
   }, [screenshot]);
   
