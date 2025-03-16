@@ -155,6 +155,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Debug log for user comparison issues
+      console.log(`Debug info for ${username}:`);
+      console.log(`Users in logs: ${new Set(allLogs.map(log => log.user))}`);
+      console.log(`Types in logs: ${new Set(allLogs.map(log => log.type))}`);
+      console.log(`Sample log: ${JSON.stringify(allLogs[0], null, 2)}`);
+      
       // For specific analyses, require relevant data
       if (dataToAnalyze.length === 0) {
         return res.status(404).json({ 
