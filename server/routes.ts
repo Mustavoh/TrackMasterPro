@@ -117,8 +117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate
       );
 
-      // If no data found and it's activity analysis, try to provide a fallback analysis
-      if (dataToAnalyze.length === 0 && analysisType === "activity") {
+      if (!analysisResult) {
         return res.status(404).json({ 
           message: "No activity data found for the selected user and time period." 
         });
