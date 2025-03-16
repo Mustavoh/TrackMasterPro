@@ -6,7 +6,7 @@ import ActivityChart from "./dashboard/ActivityChart";
 import UserDistributionChart from "./dashboard/UserDistributionChart";
 import LogsTable from "./logs/LogsTable";
 import { useState } from "react";
-import { Activity, AlertTriangle, Users, Image } from "lucide-react";
+import { Activity, AlertTriangle, Users, Image, ChevronDown } from "lucide-react";
 
 export default function Dashboard() {
   const [selectedTimeRange, setSelectedTimeRange] = useState<"day" | "week" | "month">("week");
