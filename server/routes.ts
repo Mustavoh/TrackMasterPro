@@ -157,19 +157,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get users (list of unique usernames from logs)
+  // Get users (list of unique usernames from all collections)
   app.get("/api/users", async (req: Request, res: Response) => {
     try {
-      const analytics = await mongoDbService.getAnalytics();
-      const userDistribution = analytics.userDistribution || [];
-      
-      // Convert to the required format
-      const users = userDistribution.map(user => ({
-        id: user.username,
-        username: user.username,
-        lastActive: new Date().toISOString() // This would need to come from actual data
-      }));
-      
+      console.log("API: Getting all users");
+      const users = await mongoDbService.getAllUsers();
+      console.log("API: Returning users:", users);
       res.json(users);
     } catch (error) {
       console.error("Error fetching users:", error);

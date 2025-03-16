@@ -214,6 +214,42 @@ class MongoDBService {
     }
   }
   
+  // Get all unique users from all collections
+  async getAllUsers() {
+    try {
+      await this.ensureInitialized();
+      if (!this.logsCollection || !this.screenshotsCollection || !this.clipboardCollection) {
+        throw new Error("Collections not initialized");
+      }
+      
+      console.log("Getting all users from all collections");
+      
+      // Get distinct users from all collections
+      const logUsers = await this.logsCollection.distinct("user");
+      const screenshotUsers = await this.screenshotsCollection.distinct("user");
+      const clipboardUsers = await this.clipboardCollection.distinct("user");
+      
+      // Combine and deduplicate
+      const uniqueUsersSet = new Set<string>();
+      [...logUsers, ...screenshotUsers, ...clipboardUsers].forEach(user => {
+        if (user) uniqueUsersSet.add(user);
+      });
+      
+      const allUsers = Array.from(uniqueUsersSet);
+      console.log("Found users:", allUsers);
+      
+      // Map to user objects
+      return allUsers.map(username => ({
+        id: username,
+        username: username,
+        lastActive: new Date().toISOString()
+      }));
+    } catch (error) {
+      console.error("Error getting all users:", error);
+      return [];
+    }
+  }
+  
   // Get analytics data
   async getAnalytics() {
     try {
