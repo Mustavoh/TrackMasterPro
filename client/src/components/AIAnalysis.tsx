@@ -7,7 +7,7 @@ import { ChevronDown, Database, UserCheck, AlertTriangle, Send, CheckCircle, XCi
 import { format } from "date-fns";
 
 export default function AIAnalysis() {
-  const [selectedAnalysisType, setSelectedAnalysisType] = useState<string>("keystroke");
+  const [selectedAnalysisType, setSelectedAnalysisType] = useState<string>("activity");
   const [selectedUser, setSelectedUser] = useState<string>("");
   const [startDate, setStartDate] = useState<string>(format(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
@@ -111,7 +111,14 @@ export default function AIAnalysis() {
           <div className="p-4">
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-400 mb-2">Select Analysis Type</label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <button 
+                  className={`${selectedAnalysisType === "activity" ? "bg-secondary text-white" : "bg-primary hover:bg-primary-light text-gray-200"} px-4 py-2 rounded-md text-sm flex items-center justify-center`}
+                  onClick={() => setSelectedAnalysisType("activity")}
+                >
+                  <Activity className="h-5 w-5 mr-2" />
+                  Activity Analysis
+                </button>
                 <button 
                   className={`${selectedAnalysisType === "keystroke" ? "bg-secondary text-white" : "bg-primary hover:bg-primary-light text-gray-200"} px-4 py-2 rounded-md text-sm flex items-center justify-center`}
                   onClick={() => setSelectedAnalysisType("keystroke")}

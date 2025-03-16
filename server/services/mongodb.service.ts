@@ -198,14 +198,28 @@ class MongoDBService {
   // Get all logs combined
   async getAllLogs() {
     try {
+      console.log("Getting all logs");
       const keystrokeSessions = await this.getKeystrokeSessions();
+      console.log(`Found ${keystrokeSessions.length} keystroke sessions`);
+      
       const clipboardLogs = await this.getClipboardLogs();
+      console.log(`Found ${clipboardLogs.length} clipboard logs`);
+      
       const screenshotLogs = await this.getScreenshotLogs();
+      console.log(`Found ${screenshotLogs.length} screenshot logs`);
       
       const allLogs = [...keystrokeSessions, ...clipboardLogs, ...screenshotLogs];
+      console.log(`Combined ${allLogs.length} total logs`);
       
       // Sort by timestamp in descending order
       allLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      
+      // Debug: List a few users in the logs
+      const userSet = new Set();
+      allLogs.forEach(log => {
+        if (log.user) userSet.add(log.user);
+      });
+      console.log("Users found in logs:", Array.from(userSet));
       
       return allLogs;
     } catch (error) {
