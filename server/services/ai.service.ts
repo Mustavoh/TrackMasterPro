@@ -82,43 +82,23 @@ class AIService {
         }));
       }
 
-      // Create appropriate prompt with ALL log data
-      const allLogTypes = ["Keystroke", "Screenshot", "Clipboard"];
-      const allUserLogs = await mongoDbService.db.collection('logs')
-        .find({
-          user: username,
-          type: { $in: allLogTypes }
-        })
-        .toArray();
+      // Create appropriate prompt based on analysis type
+      let prompt = "";
 
-      // Add raw data section
-      const logsByType = {};
-      allLogTypes.forEach(type => {
-        logsByType[type] = allUserLogs.filter(log => log.type === type)
-          .map(log => ({
-            timestamp: log.timestamp,
-            data: log.type === "Screenshot" ? "[Screenshot Data]" : log.data,
-            avgSpeed: log.avgSpeed
-          }));
-      });
+      if (analysisType === "keystroke") {
+        prompt = `
+          You are a cybersecurity analyst examining user keystroke data.
+          Analyze the following data for user "${username}" from ${startDate} to ${endDate}:
 
-      let prompt = `
-        You are a cybersecurity analyst examining ALL user activity data.
-        Analyze the following data for user "${username}" from ${startDate} to ${endDate}:
+          ${JSON.stringify(formattedData, null, 2)}
 
-        FULL LOG DATA:
-        ${JSON.stringify(logsByType, null, 2)}
-
-        FORMATTED ANALYSIS DATA:
-        ${JSON.stringify(formattedData, null, 2)}
-
-        Provide a detailed analysis with the following sections:
-        1. ALL suspicious patterns found in ANY log type
-        2. ALL potentially sensitive data found
-        3. Correlations between different types of logs
-        4. Security risk assessment with specific examples
-        5. Detailed recommendations based on ALL findings
-      `;
+          Provide a detailed analysis with the following sections:
+          1. Unusual typing patterns (if any)
+          2. Authentication and login patterns
+          3. Potential sensitive data exposure
+          4. Specific recommendations based on your findings
+          5. A risk assessment (Low, Medium, or High)
+        `;
       } else if (analysisType === "screenshot") {
         prompt = `
           You are a cybersecurity analyst examining user screenshot activity.
