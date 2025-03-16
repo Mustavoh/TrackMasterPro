@@ -1,6 +1,7 @@
 
 import { Groq } from 'groq-sdk';
 import { timeAgo } from '@shared/utils';
+import { mongoDbService } from './mongodb.service';
 
 // Initialize Groq client
 const GROQ_API_KEY = process.env.GROQ_API_KEY || "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";
