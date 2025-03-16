@@ -10,7 +10,8 @@ import {
   Lock, 
   Save,
   Info,
-  AlertCircle
+  AlertCircle,
+  Eye
 } from "lucide-react";
 
 export default function Settings() {

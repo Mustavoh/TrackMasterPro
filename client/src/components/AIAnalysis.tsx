@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import Header from "./layout/Header";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
-import { ChevronDown, Database, UserCheck, AlertTriangle, Send, CheckCircle, XCircle } from "lucide-react";
+import { ChevronDown, Database, UserCheck, AlertTriangle, Send, CheckCircle, XCircle, Download } from "lucide-react";
 import { format } from "date-fns";
 
 export default function AIAnalysis() {
