@@ -16,22 +16,45 @@ class AIService {
       console.log(`AI analyzing data for ${username}, ${logData.length} entries`);
       
       // Check what types of logs we have
-      const logTypes = new Set(logData.map(log => log.type));
-      console.log(`Log types found: ${Array.from(logTypes).join(', ')}`);
+      // Log the raw data for debugging
+      console.log('Raw data for analysis:', JSON.stringify(logData.slice(0, 2), null, 2));
       
-      // Prepare the data for analysis based on log types present
-      let formattedData: any = [];
-      let analysisType = "activity"; // Default
-      
-      if (logTypes.has("Keystroke")) {
-        const keystrokeData = logData.filter(log => log.type === "Keystroke");
-        formattedData = keystrokeData.map(session => ({
-          timestamp: session.timestamp,
-          keystrokes: session.data,
-          avgSpeed: session.avgSpeed
-        }));
-        analysisType = "keystroke";
-      } else if (logTypes.has("Screenshot")) {
+      // Filter logs for the specific user
+      const userLogs = logData.filter(log => log.user.toLowerCase() === username.toLowerCase());
+      console.log(`Found ${userLogs.length} logs for user ${username}`);
+
+      // Prepare data based on analysis type
+      let formattedData = userLogs.map(log => ({
+        timestamp: log.timestamp,
+        type: log.type,
+        data: log.data,
+        avgSpeed: log.avgSpeed,
+        ip: log.ip
+      }));
+
+      if (formattedData.length === 0) {
+        throw new Error(`No data found for user ${username}`);
+      }
+
+      // Include all log data in the analysis
+      return {
+        username,
+        analysisType,
+        dateRange: { start: startDate, end: endDate },
+        findings: [
+          {
+            title: "Activity Overview",
+            description: `Analysis of ${formattedData.length} logs from user ${username}`,
+            severity: "success",
+            icon: "activity"
+          }
+        ],
+        logs: formattedData,
+        riskLevel: "Low Risk",
+        riskPercentage: 25,
+        recommendations: ["Monitor user activity patterns"],
+        generatedAt: new Date().toISOString()
+      };
         const screenshotData = logData.filter(log => log.type === "Screenshot");
         formattedData = screenshotData.map(screenshot => ({
           timestamp: screenshot.timestamp,
