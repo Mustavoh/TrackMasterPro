@@ -40,7 +40,7 @@ export default function Sidebar({ activeSection, setActiveSection }: SidebarProp
           <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center">
             <Lock className="h-5 w-5 text-white" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight">CyberSentrix 3.0</h1>
+          <h1 className="text-xl font-bold tracking-tight">CyberSentrix 4.1</h1>
         </div>
       </div>
 

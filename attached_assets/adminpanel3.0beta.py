@@ -271,7 +271,7 @@ class AdminPanel(ctk.CTk):
         super().__init__()
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
-        self.title("CyberSentrix 3.0 Panel")
+        self.title("CyberSentrix 4.1 Panel")
         self.iconbitmap("Program_Icon.ico")
 
         self.update_idletasks()
