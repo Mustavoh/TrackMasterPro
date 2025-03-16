@@ -9,15 +9,37 @@ const groq = new Groq({ apiKey: GROQ_API_KEY });
 class AIService {
   async analyzeKeystrokeData(
     username: string,
-    logData: any[],
     startDate: string,
     endDate: string
   ) {
     try {
-      console.log(`AI analyzing data for ${username}, ${logData.length} entries`);
+      // Get logs in batches to handle large datasets
+      const BATCH_SIZE = 100;
+      let allLogs = [];
+      let skip = 0;
+      
+      while (true) {
+        const batch = await mongoDbService.db.collection('logs')
+          .find({
+            user: username,
+            timestamp: {
+              $gte: new Date(startDate),
+              $lte: new Date(endDate)
+            }
+          })
+          .skip(skip)
+          .limit(BATCH_SIZE)
+          .toArray();
+
+        if (batch.length === 0) break;
+        allLogs = allLogs.concat(batch);
+        skip += BATCH_SIZE;
+      }
+
+      console.log(`AI analyzing data for ${username}, ${allLogs.length} entries`);
       
       // Check what types of logs we have
-      const logTypes = new Set(logData.map(log => log.type));
+      const logTypes = new Set(allLogs.map(log => log.type));
       console.log(`Log types found: ${Array.from(logTypes).join(', ')}`);
       
       // Prepare the data for analysis based on log types present

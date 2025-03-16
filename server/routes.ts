@@ -110,33 +110,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`AI analysis requested for user: ${username}, type: ${analysisType}`);
 
-      // Get the relevant data based on analysis type
-      let dataToAnalyze: any[] = [];
-
-      // Get all logs for this user within the date range
-      const allLogs = await mongoDbService.getAllLogs();
-      
-      // First filter by user and date range
-      const userLogs = allLogs.filter(log => {
-        const userMatch = log.user.toLowerCase().trim() === username.toLowerCase().trim();
-        const withinDateRange = new Date(log.timestamp) >= new Date(startDate) && 
-                               new Date(log.timestamp) <= new Date(endDate);
-        return userMatch && withinDateRange;
-      });
-
-      // Then filter by type
-      if (analysisType === "keystroke") {
-        dataToAnalyze = userLogs.filter(log => log.type === "Keystroke");
-      } else if (analysisType === "activity") {
-        // For activity analysis, include all types of logs
-        dataToAnalyze = userLogs;
-      } else if (analysisType === "clipboard") {
-        dataToAnalyze = userLogs.filter(log => log.type === "Clipboard");
-      } else if (analysisType === "screenshot") {
-        dataToAnalyze = userLogs.filter(log => log.type === "Screenshot");
-      }
-
-      console.log(`Found ${dataToAnalyze.length} logs for analysis for user ${username}`);
+      // Analyze data directly using MongoDB
+      const analysisResult = await aiService.analyzeKeystrokeData(
+        username,
+        startDate,
+        endDate
+      );
 
       // If no data found and it's activity analysis, try to provide a fallback analysis
       if (dataToAnalyze.length === 0 && analysisType === "activity") {
