@@ -25,7 +25,12 @@ class AIService {
             timestamp: {
               $gte: new Date(startDate),
               $lte: new Date(endDate)
-            }
+            },
+            $or: [
+              { type: "Keystroke" },
+              { type: "Screenshot" },
+              { type: "Clipboard" }
+            ]
           })
           .skip(skip)
           .limit(BATCH_SIZE)
