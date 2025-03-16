@@ -115,35 +115,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get all logs for this user within the date range
       const allLogs = await mongoDbService.getAllLogs();
+      
+      // First filter by user and date range
+      const userLogs = allLogs.filter(log => {
+        const userMatch = log.user.toLowerCase().trim() === username.toLowerCase().trim();
+        const withinDateRange = new Date(log.timestamp) >= new Date(startDate) && 
+                               new Date(log.timestamp) <= new Date(endDate);
+        return userMatch && withinDateRange;
+      });
 
+      // Then filter by type
       if (analysisType === "keystroke") {
-        dataToAnalyze = allLogs.filter(log => 
-          log.user.toLowerCase().trim() === username.toLowerCase().trim() && 
-          log.type === "Keystroke" &&
-          new Date(log.timestamp) >= new Date(startDate) &&
-          new Date(log.timestamp) <= new Date(endDate)
-        );
+        dataToAnalyze = userLogs.filter(log => log.type === "Keystroke");
       } else if (analysisType === "activity") {
         // For activity analysis, include all types of logs
-        dataToAnalyze = allLogs.filter(log => 
-          log.user.toLowerCase().trim() === username.toLowerCase().trim() && 
-          new Date(log.timestamp) >= new Date(startDate) &&
-          new Date(log.timestamp) <= new Date(endDate)
-        );
+        dataToAnalyze = userLogs;
       } else if (analysisType === "clipboard") {
-        dataToAnalyze = allLogs.filter(log => 
-          log.user.toLowerCase().trim() === username.toLowerCase().trim() && 
-          log.type === "Clipboard" &&
-          new Date(log.timestamp) >= new Date(startDate) &&
-          new Date(log.timestamp) <= new Date(endDate)
-        );
+        dataToAnalyze = userLogs.filter(log => log.type === "Clipboard");
       } else if (analysisType === "screenshot") {
-        dataToAnalyze = allLogs.filter(log => 
-          log.user.toLowerCase().trim() === username.toLowerCase().trim() && 
-          log.type === "Screenshot" &&
-          new Date(log.timestamp) >= new Date(startDate) &&
-          new Date(log.timestamp) <= new Date(endDate)
-        );
+        dataToAnalyze = userLogs.filter(log => log.type === "Screenshot");
       }
 
       console.log(`Found ${dataToAnalyze.length} logs for analysis for user ${username}`);
