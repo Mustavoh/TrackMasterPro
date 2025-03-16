@@ -108,21 +108,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Missing required parameters" });
       }
       
+      console.log(`AI analysis requested for user: ${username}, type: ${analysisType}`);
+      
       // Get the relevant data based on analysis type
       let dataToAnalyze: any[] = [];
       
+      // Get all logs for this user within the date range
+      const allLogs = await mongoDbService.getAllLogs();
+      
       if (analysisType === "keystroke") {
-        const allLogs = await mongoDbService.getAllLogs();
         dataToAnalyze = allLogs.filter(log => 
           log.user === username && 
           log.type === "Keystroke" &&
           new Date(log.timestamp) >= new Date(startDate) &&
           new Date(log.timestamp) <= new Date(endDate)
         );
+      } else if (analysisType === "activity") {
+        // For activity analysis, include all types of logs
+        dataToAnalyze = allLogs.filter(log => 
+          log.user === username && 
+          new Date(log.timestamp) >= new Date(startDate) &&
+          new Date(log.timestamp) <= new Date(endDate)
+        );
+      } else if (analysisType === "clipboard") {
+        dataToAnalyze = allLogs.filter(log => 
+          log.user === username && 
+          log.type === "Clipboard" &&
+          new Date(log.timestamp) >= new Date(startDate) &&
+          new Date(log.timestamp) <= new Date(endDate)
+        );
+      } else if (analysisType === "screenshot") {
+        dataToAnalyze = allLogs.filter(log => 
+          log.user === username && 
+          log.type === "Screenshot" &&
+          new Date(log.timestamp) >= new Date(startDate) &&
+          new Date(log.timestamp) <= new Date(endDate)
+        );
       }
       
+      console.log(`Found ${dataToAnalyze.length} logs for analysis for user ${username}`);
+      
+      // If no data found and it's activity analysis, try to provide a fallback analysis
+      if (dataToAnalyze.length === 0 && analysisType === "activity") {
+        return res.status(404).json({ 
+          message: "No activity data found for the selected user and time period." 
+        });
+      }
+      
+      // For specific analyses, require relevant data
       if (dataToAnalyze.length === 0) {
-        return res.status(404).json({ message: "No data found for the selected criteria" });
+        return res.status(404).json({ 
+          message: "No data found for the selected criteria. Try 'Activity Analysis' which includes all data types." 
+        });
       }
       
       const analysisResult = await aiService.analyzeKeystrokeData(
